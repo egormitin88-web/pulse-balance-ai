@@ -1,0 +1,26 @@
+# Ключи и секретные настройки
+.env
+.env.*
+!.env.example
+
+# Локальная база данных
+data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Python
+.venv/
+venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+
+# Зависимости и сборка интерфейса
+node_modules/
+frontend/dist/
+*.tsbuildinfo
+
+# Служебные файлы
+.vercel/
+*.log
