@@ -14,6 +14,7 @@ type Membership = { id: number; plan: Plan; starts_at: string; ends_at: string; 
 type Service = { id: number; code: string; name: string; duration_minutes: number }
 type Trainer = { id: number; full_name: string; specialty: string }
 type AuditEvent = { id: number; actor_user_id: number | null; action: string; target_type: string; target_id: string; created_at: string }
+type KeyStorage = 'system' | 'memory' | 'environment'
 
 async function api<T>(path: string, options: RequestInit = {}): Promise<T> {
   const response = await fetch('/api' + path, {
@@ -62,7 +63,7 @@ function App() {
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const [adminFacts, setAdminFacts] = useState<Fact[]>([])
   const [keyConfigured, setKeyConfigured] = useState(false)
-  const [keyStorage, setKeyStorage] = useState<'system' | 'memory' | null>(null)
+  const [keyStorage, setKeyStorage] = useState<KeyStorage | null>(null)
   const [keyValue, setKeyValue] = useState('')
   const [adminPlanId, setAdminPlanId] = useState<number | null>(null)
   const [auditEvents, setAuditEvents] = useState<AuditEvent[]>([])
@@ -93,7 +94,7 @@ function App() {
         ]); setMembership(m.membership); setBookings(b); setFacts(f)
       } else { setMembership(null); setBookings([]); setFacts([]) }
       if (nextUser?.role === 'ADMIN') {
-        const [u, k, a] = await Promise.all([api<User[]>('/admin/users'), api<{ configured: boolean; storage: 'system' | 'memory' | null }>('/admin/key'), api<AuditEvent[]>('/admin/audit')])
+        const [u, k, a] = await Promise.all([api<User[]>('/admin/users'), api<{ configured: boolean; storage: KeyStorage | null }>('/admin/key'), api<AuditEvent[]>('/admin/audit')])
         setAdminUsers(u); setKeyConfigured(k.configured); setKeyStorage(k.storage); setAuditEvents(a)
       }
     } catch (error) { showError(error) }
@@ -197,7 +198,7 @@ function App() {
   const saveKey = async (event: React.FormEvent) => {
     event.preventDefault(); setBusy(true)
     try {
-      const result = await api<{ configured: boolean; storage: 'system' | 'memory' }>('/admin/key', { method: 'PUT', body: JSON.stringify({ api_key: keyValue }) })
+      const result = await api<{ configured: boolean; storage: KeyStorage }>('/admin/key', { method: 'PUT', body: JSON.stringify({ api_key: keyValue }) })
       setKeyValue(''); setKeyConfigured(result.configured); setKeyStorage(result.storage)
       setNotice(result.storage === 'memory' ? 'Ключ подключён. Он хранится только до перезапуска сервера.' : 'Ключ сохранён в системном хранилище компьютера.')
     } catch (error) { showError(error) } finally { setBusy(false) }
@@ -315,8 +316,8 @@ function App() {
         <section className="panel key-panel">
           <div className="panel-heading"><span>01</span><h2>Подключение OpenAI</h2></div>
           <div className={'key-status ' + (keyConfigured ? 'connected' : '')}><span className="dot" />{keyConfigured ? keyStorage === 'memory' ? 'Ключ подключён до перезапуска сервера. Консультант может отвечать.' : 'Ключ сохранён. Консультант может отвечать.' : 'Ключ пока не добавлен. Чат недоступен.'}</div>
-          <p>Ключ отправляется только на локальный сервер. Если системное хранилище Windows недоступно, он остаётся только в памяти до перезапуска сервера; в базу данных и исходный код не записывается. После сохранения значение не отображается.</p>
-          <form onSubmit={saveKey} className="key-form"><label htmlFor="api-key">Ключ OpenAI API</label><input id="api-key" type="password" autoComplete="off" value={keyValue} onChange={e => setKeyValue(e.target.value)} placeholder="sk-..." /><div className="form-actions"><button className="button button-small" disabled={busy || !keyValue} type="submit">Сохранить ключ</button>{keyConfigured && <button className="text-button danger" type="button" onClick={removeKey}>Удалить ключ</button>}</div></form>
+          <p>{keyStorage === 'environment' ? 'Ключ подключён через закрытые настройки сервера. Для изменения ключа обратитесь к владельцу приложения.' : 'Ключ отправляется на сервер. При локальном запуске он хранится в системном хранилище Windows или в памяти до перезапуска; в базу данных и исходный код не записывается.'}</p>
+          {keyStorage !== 'environment' && <form onSubmit={saveKey} className="key-form"><label htmlFor="api-key">Ключ OpenAI API</label><input id="api-key" type="password" autoComplete="off" value={keyValue} onChange={e => setKeyValue(e.target.value)} placeholder="sk-..." /><div className="form-actions"><button className="button button-small" disabled={busy || !keyValue} type="submit">Сохранить ключ</button>{keyConfigured && <button className="text-button danger" type="button" onClick={removeKey}>Удалить ключ</button>}</div></form>}
         </section>
         <section className="panel">
           <div className="panel-heading"><span>02</span><h2>Клиенты</h2></div>

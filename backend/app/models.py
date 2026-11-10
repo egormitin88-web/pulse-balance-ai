@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, CheckConstraint, DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import TypeDecorator
 
 from .db import Base
 
@@ -13,6 +14,28 @@ def now_utc() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+class UTCDateTime(TypeDecorator):
+    """Store timezone-aware UTC in Postgres; expose naive UTC consistently with SQLite."""
+
+    impl = DateTime(timezone=True)
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        value = value.astimezone(timezone.utc)
+        return value if dialect.name == "postgresql" else value.replace(tzinfo=None)
+
+    def process_result_value(self, value, dialect):
+        if value is None:
+            return None
+        if value.tzinfo is not None:
+            value = value.astimezone(timezone.utc)
+        return value.replace(tzinfo=None)
+
+
 class User(Base):
     __tablename__ = "users"
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -20,7 +43,7 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(120))
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[str] = mapped_column(String(12), default="CLIENT", index=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now_utc)
     __table_args__ = (CheckConstraint("role IN ('CLIENT','ADMIN')"),)
 
 
@@ -59,8 +82,8 @@ class Membership(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
-    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
-    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    starts_at: Mapped[datetime] = mapped_column(UTCDateTime())
+    ends_at: Mapped[datetime] = mapped_column(UTCDateTime())
     status: Mapped[str] = mapped_column(String(20), default="ACTIVE")
     user: Mapped[User] = relationship()
     plan: Mapped[Plan] = relationship()
@@ -72,8 +95,8 @@ class ClassSession(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     service_id: Mapped[int] = mapped_column(ForeignKey("services.id"), index=True)
     trainer_id: Mapped[int | None] = mapped_column(ForeignKey("trainers.id"), nullable=True)
-    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
-    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    starts_at: Mapped[datetime] = mapped_column(UTCDateTime(), index=True)
+    ends_at: Mapped[datetime] = mapped_column(UTCDateTime())
     capacity: Mapped[int] = mapped_column(Integer)
     booked_count: Mapped[int] = mapped_column(Integer, default=0)
     status: Mapped[str] = mapped_column(String(20), default="OPEN")
@@ -88,7 +111,7 @@ class Booking(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
     class_id: Mapped[int] = mapped_column(ForeignKey("class_sessions.id"), index=True)
     status: Mapped[str] = mapped_column(String(20), default="ACTIVE")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now_utc)
     class_session: Mapped[ClassSession] = relationship()
     __table_args__ = (UniqueConstraint("user_id", "class_id", name="uq_booking_user_class"),)
 
@@ -100,8 +123,8 @@ class Conversation(Base):
     anonymous_id: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     title: Mapped[str] = mapped_column(String(120), default="Новый диалог")
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now_utc)
 
 
 class Message(Base):
@@ -110,7 +133,7 @@ class Message(Base):
     conversation_id: Mapped[int] = mapped_column(ForeignKey("conversations.id"), index=True)
     role: Mapped[str] = mapped_column(String(12))
     content: Mapped[str] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now_utc)
 
 
 class MemoryFact(Base):
@@ -123,8 +146,8 @@ class MemoryFact(Base):
     source: Mapped[str] = mapped_column(String(30), default="USER_MESSAGE")
     source_message_id: Mapped[int | None] = mapped_column(ForeignKey("messages.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(16), default="ACTIVE")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now_utc)
     __table_args__ = (UniqueConstraint("user_id", "category", "fact_key", name="uq_memory_user_key"),)
 
 
@@ -135,8 +158,8 @@ class PendingAction(Base):
     action: Mapped[str] = mapped_column(String(30))
     target_id: Mapped[int] = mapped_column(Integer)
     status: Mapped[str] = mapped_column(String(20), default="PENDING")
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now_utc)
+    expires_at: Mapped[datetime] = mapped_column(UTCDateTime())
 
 
 class AuditLog(Base):
@@ -147,7 +170,7 @@ class AuditLog(Base):
     target_type: Mapped[str] = mapped_column(String(40))
     target_id: Mapped[str] = mapped_column(String(80))
     details: Mapped[dict] = mapped_column(JSON, default=dict)
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=now_utc)
 
 
 Index("ix_messages_conv_created", Message.conversation_id, Message.created_at)

@@ -24,3 +24,8 @@ frontend/dist/
 # Служебные файлы
 .vercel/
 *.log
+.neon
+
+.vercel
+.env*
+!.env.example

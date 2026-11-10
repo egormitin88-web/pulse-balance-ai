@@ -20,6 +20,13 @@ _memory_openai_key: str | None = None
 
 
 def _session_secret() -> str:
+    configured = os.getenv("FITNESS_SESSION_SECRET")
+    if configured:
+        if len(configured) < 32:
+            raise RuntimeError("FITNESS_SESSION_SECRET must contain at least 32 characters")
+        return configured
+    if os.getenv("VERCEL") == "1":
+        raise RuntimeError("Set FITNESS_SESSION_SECRET in Vercel")
     if SESSION_FILE.exists():
         return SESSION_FILE.read_text(encoding="utf-8").strip()
     secret = secrets.token_urlsafe(48)
@@ -78,6 +85,8 @@ def save_openai_key(value: str) -> str:
     global _memory_openai_key
     if not value.startswith("sk-") or len(value) < 24:
         raise ValueError("Ожидается ключ OpenAI API, начинающийся с sk-.")
+    if os.getenv("VERCEL") == "1" or os.getenv("OPENAI_API_KEY"):
+        raise ValueError("В опубликованной версии ключ меняется в закрытых настройках Vercel.")
     try:
         keyring.set_password(KEYRING_SERVICE, KEYRING_USERNAME, value)
     except Exception:
@@ -90,6 +99,9 @@ def save_openai_key(value: str) -> str:
 
 
 def read_openai_key() -> str | None:
+    configured = os.getenv("OPENAI_API_KEY")
+    if configured:
+        return configured
     if _memory_openai_key is not None:
         return _memory_openai_key
     try:
@@ -99,12 +111,16 @@ def read_openai_key() -> str | None:
 
 
 def openai_key_storage_mode() -> str | None:
+    if os.getenv("OPENAI_API_KEY"):
+        return "environment"
     if _memory_openai_key is not None:
         return "memory"
     return "system" if read_openai_key() else None
 
 
 def delete_openai_key() -> None:
+    if os.getenv("VERCEL") == "1" or os.getenv("OPENAI_API_KEY"):
+        raise ValueError("В опубликованной версии ключ удаляется в закрытых настройках Vercel.")
     global _memory_openai_key
     was_in_memory = _memory_openai_key is not None
     _memory_openai_key = None

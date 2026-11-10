@@ -1,5 +1,6 @@
 param(
-    [string]$PythonExe = ''
+    [string]$PythonExe = '',
+    [int]$Port = 8001
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,7 +21,7 @@ if (-not (Test-Path -LiteralPath $venvPython)) {
     if ($LASTEXITCODE -ne 0) { throw 'Could not create a Python environment. Pass -PythonExe with a Python 3.11+ path.' }
 }
 
-& $venvPython -c 'import fastapi, uvicorn, sqlalchemy, pydantic, argon2, itsdangerous, openai, keyring' *> $null
+& $venvPython -c 'import fastapi, uvicorn, sqlalchemy, pydantic, argon2, itsdangerous, openai, keyring, psycopg, dotenv, websockets' *> $null
 if ($LASTEXITCODE -ne 0) {
     & $venvPython -m pip install -r (Join-Path $backendRoot 'requirements.txt')
     if ($LASTEXITCODE -ne 0) { throw 'Could not install Python dependencies.' }
@@ -28,8 +29,8 @@ if ($LASTEXITCODE -ne 0) {
 
 Push-Location $backendRoot
 try {
-    Write-Host 'Open http://127.0.0.1:8000 in your browser. Press Ctrl+C to stop.'
-    & $venvPython -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+    Write-Host "Open http://127.0.0.1:$Port in your browser. Press Ctrl+C to stop."
+    & $venvPython -m uvicorn app.main:app --host 127.0.0.1 --port $Port
 } finally {
     Pop-Location
 }

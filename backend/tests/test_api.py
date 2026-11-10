@@ -193,3 +193,16 @@ def test_agent_tool_call_reads_current_sql_catalog(monkeypatch):
         assert actions == []
         tool_outputs = [item for item in fake.inputs[1] if isinstance(item, dict) and item.get("type") == "function_call_output"]
         assert tool_outputs and "Старт" in tool_outputs[0]["output"]
+
+
+def test_server_key_is_not_exposed_or_changed_by_demo_admin(monkeypatch):
+    secret = "sk-" + "environment-test-placeholder" * 2
+    monkeypatch.setenv("OPENAI_API_KEY", secret)
+    with TestClient(app) as client:
+        login(client, "admin@demo.pulsebalance.ru", "Admin2026!")
+        status = client.get("/api/admin/key")
+        assert status.json() == {"configured": True, "storage": "environment"}
+        assert secret not in status.text
+        assert client.put("/api/admin/key", json={"api_key": "sk-" + "x" * 40}).status_code == 422
+        assert client.delete("/api/admin/key").status_code == 409
+        assert security_module.read_openai_key() == secret

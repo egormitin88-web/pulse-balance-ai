@@ -13,7 +13,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr, Field
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from .ai import active_facts, chat_answer, client_for_saved_key, extract_and_save_memory, maybe_summarize
@@ -64,6 +65,9 @@ async def safe_validation_error(_request: Request, exc: RequestValidationError):
 
 @app.on_event("startup")
 def startup() -> None:
+    if os.getenv("VERCEL") == "1":
+        # The persistent database is prepared before deployment, not on every cold start.
+        return
     Base.metadata.create_all(engine)
     with SessionLocal() as db:
         seed(db)
@@ -73,6 +77,15 @@ def startup() -> None:
             db.execute(delete(Message).where(Message.conversation_id.in_(expired)))
             db.execute(delete(Conversation).where(Conversation.id.in_(expired)))
             db.commit()
+
+
+@app.get("/api/health")
+def health(db: Session = Depends(get_db)):
+    try:
+        db.execute(text("SELECT 1"))
+    except SQLAlchemyError:
+        raise HTTPException(503, "База данных временно недоступна")
+    return {"status": "ok", "database": engine.dialect.name}
 
 
 @app.middleware("http")
@@ -417,6 +430,8 @@ async def set_key(request: Request, admin: User = Depends(require_admin), db: Se
 def remove_key(admin: User = Depends(require_admin), db: Session = Depends(get_db)):
     try:
         delete_openai_key()
+    except ValueError as exc:
+        raise HTTPException(409, str(exc))
     except Exception:
         raise HTTPException(503, "Не удалось удалить ключ")
     audit(db, admin.id, "OPENAI_KEY_DELETE", "settings", "openai")

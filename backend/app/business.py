@@ -25,11 +25,21 @@ STATIC_KNOWLEDGE = """Фитнес-центр «Пульс & Баланс» — 
 
 
 def iso_utc(value: datetime | None) -> str | None:
-    return value.isoformat(timespec="seconds") + "Z" if value else None
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=ZoneInfo("UTC"))
+    return (
+        value.astimezone(ZoneInfo("UTC"))
+        .isoformat(timespec="seconds")
+        .replace("+00:00", "Z")
+    )
 
 
 def utc_to_local(value: datetime) -> str:
-    return value.replace(tzinfo=ZoneInfo("UTC")).astimezone(MOSCOW).isoformat(timespec="minutes")
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=ZoneInfo("UTC"))
+    return value.astimezone(MOSCOW).isoformat(timespec="minutes")
 
 
 def active_membership(db: Session, user_id: int) -> Membership | None:
