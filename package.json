@@ -2,6 +2,7 @@
   "name": "pulse-balance-ai",
   "private": true,
   "scripts": {
+    "test": "npm --prefix frontend test",
     "build": "npm --prefix frontend run build"
   },
   "dependencies": {

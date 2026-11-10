@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import './style.css'
+import { filterSchedule } from './schedule'
 
 type User = { id: number; email: string; full_name: string; role: 'CLIENT' | 'ADMIN' }
 type Plan = { id: number; name: string; price_rub: number; duration_days: number; description: string; benefits: Record<string, unknown>; freeze_days: number; services: string[] }
@@ -59,6 +60,7 @@ function App() {
   const [authPassword, setAuthPassword] = useState('')
   const [authName, setAuthName] = useState('')
   const [serviceFilter, setServiceFilter] = useState('')
+  const [onlyAvailable, setOnlyAvailable] = useState(false)
   const [adminUsers, setAdminUsers] = useState<User[]>([])
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null)
   const [adminFacts, setAdminFacts] = useState<Fact[]>([])
@@ -275,7 +277,7 @@ function App() {
     } catch (error) { showError(error) }
   }
 
-  const filteredSchedule = schedule.filter(item => !serviceFilter || item.service_code === serviceFilter)
+  const filteredSchedule = filterSchedule(schedule, serviceFilter, onlyAvailable)
   const serviceCodes = Array.from(new Map(schedule.map(item => [item.service_code, item.service])).entries())
 
   return <div className="app-shell">
@@ -304,7 +306,15 @@ function App() {
       <footer><strong>Пульс & Баланс</strong><span>Москва, ул. Примерная, 14 · +7 (495) 000-14-14</span><span>Пн–пт 07:00–23:00 · Сб–вс 08:00–22:00</span></footer>
     </main>}
 
-    {page === 'schedule' && <main className="inner-page"><div className="page-title"><span className="eyebrow">ЗАНЯТИЯ И БАССЕЙН</span><h1>Расписание</h1><p>Даты, тренеры и свободные места обновляются из базы клуба.</p></div><div className="filter-row"><button className={!serviceFilter ? 'selected' : ''} onClick={() => setServiceFilter('')}>Все направления</button>{serviceCodes.map(([code, name]) => <button key={code} className={serviceFilter === code ? 'selected' : ''} onClick={() => setServiceFilter(code)}>{name}</button>)}</div><div className="schedule-list">{filteredSchedule.map(item => <article className="class-row" key={item.id}><div className="class-date"><strong>{new Date(item.starts_at).getDate()}</strong><span>{new Intl.DateTimeFormat('ru-RU', { month: 'short' }).format(new Date(item.starts_at))}</span></div><div className="class-main"><div className="class-meta">{formatDay(item.starts_at)} · {new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date(item.starts_at))}</div><h3>{item.service}</h3><p>{item.trainer || 'Самостоятельное посещение'}</p></div><div className="class-places"><strong>{item.free_places}</strong><span>мест свободно</span></div><button className="button button-small" disabled={busy || item.free_places === 0 || !user || user.role !== 'CLIENT'} onClick={() => book(item.id)}>{!user ? 'Войдите для записи' : item.free_places === 0 ? 'Нет мест' : 'Записаться'}</button></article>)}{filteredSchedule.length === 0 && <div className="empty">На выбранное направление занятий пока нет.</div>}</div></main>}
+    {page === 'schedule' && <main className="inner-page">
+      <div className="page-title"><span className="eyebrow">ЗАНЯТИЯ И БАССЕЙН</span><h1>Расписание</h1><p>Даты, тренеры и свободные места обновляются из базы клуба.</p></div>
+      <div className="filter-row"><button className={!serviceFilter ? 'selected' : ''} onClick={() => setServiceFilter('')}>Все направления</button>{serviceCodes.map(([code, name]) => <button key={code} className={serviceFilter === code ? 'selected' : ''} onClick={() => setServiceFilter(code)}>{name}</button>)}</div>
+      <div className="schedule-toolbar">
+        <button type="button" className={'availability-toggle' + (onlyAvailable ? ' selected' : '')} aria-pressed={onlyAvailable} onClick={() => setOnlyAvailable(previous => !previous)}>Только свободные места</button>
+        <span role="status" aria-live="polite">Найдено занятий: {filteredSchedule.length}</span>
+      </div>
+      <div className="schedule-list">{filteredSchedule.map(item => <article className="class-row" key={item.id}><div className="class-date"><strong>{new Date(item.starts_at).getDate()}</strong><span>{new Intl.DateTimeFormat('ru-RU', { month: 'short' }).format(new Date(item.starts_at))}</span></div><div className="class-main"><div className="class-meta">{formatDay(item.starts_at)} · {new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit' }).format(new Date(item.starts_at))}</div><h3>{item.service}</h3><p>{item.trainer || 'Самостоятельное посещение'}</p></div><div className="class-places"><strong>{item.free_places}</strong><span>мест свободно</span></div><button className="button button-small" disabled={busy || item.free_places === 0 || !user || user.role !== 'CLIENT'} onClick={() => book(item.id)}>{!user ? 'Войдите для записи' : item.free_places === 0 ? 'Нет мест' : 'Записаться'}</button></article>)}{filteredSchedule.length === 0 && <div className="empty">{onlyAvailable ? 'Занятий со свободными местами не найдено. Отключите фильтр или выберите другое направление.' : 'На выбранное направление занятий пока нет.'}</div>}</div>
+    </main>}
 
     {page === 'chat' && <main className="chat-layout"><aside className="chat-sidebar"><div className="sidebar-top"><span className="eyebrow">ВАШИ ДИАЛОГИ</span><button onClick={newConversation}>＋ Новый чат</button></div><div className="chat-history">{conversations.map(c => <button key={c.id} className={conversationId === c.id ? 'selected' : ''} onClick={() => openConversation(c.id)}><span>◌</span>{c.title}</button>)}{!conversations.length && <p>Пока нет разговоров</p>}</div><div className="sidebar-note">{user ? 'История и предпочтения сохраняются для вашего аккаунта.' : 'Гостевой диалог доступен 24 часа в этом браузере.'}</div></aside><section className="chat-panel"><div className="chat-heading"><div className="assistant-avatar">✳</div><div><strong>AI-консультант</strong><span>Пульс & Баланс · помощь с тренировками</span></div><div className="online-dot" title="Готов к разговору" /></div><div className="messages">{messages.length === 0 && <div className="welcome-message"><div className="welcome-symbol">✳</div><h2>С чего начнём?</h2><p>Расскажите о цели или спросите о тарифах и занятиях. Я помогу подобрать подходящий ритм.</p><div className="suggestions">{['Хочу заниматься 3 раза в неделю', 'Какие есть тарифы?', 'Покажи занятия по йоге'].map(t => <button key={t} onClick={() => setChatText(t)}>{t} ↗</button>)}</div></div>}{messages.map((m, index) => <div key={m.id || index} className={'message ' + m.role}><div className="message-avatar">{m.role === 'assistant' ? '✳' : 'Я'}</div><div className="message-bubble">{m.content}</div></div>)}{busy && <div className="typing">Консультант отвечает<span>•••</span></div>}{pendingActions.map(action => <div className="action-card" key={action.id}><strong>{action.type === 'BOOK' ? 'Подтвердить запись' : 'Подтвердить отмену'}</strong><p>{action.type === 'BOOK' ? `Занятие №${action.target_id}` : `Запись №${action.target_id}`}</p><button className="button button-small" disabled={busy} onClick={() => confirmAction(action)}>Подтвердить</button></div>)}</div><form className="chat-form" onSubmit={sendChat}><input aria-label="Сообщение консультанту" value={chatText} onChange={e => setChatText(e.target.value)} placeholder="Напишите сообщение..." maxLength={4000} /><button disabled={busy || !chatText.trim()} aria-label="Отправить">↑</button></form><p className="chat-disclaimer">Консультант использует данные клуба. Медицинские вопросы обсудите со специалистом.</p></section></main>}
 

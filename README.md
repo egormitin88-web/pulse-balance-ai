@@ -8,6 +8,8 @@
 
 Настройки публикации и результаты проверок: [docs/deployment.md](docs/deployment.md).
 
+В ветке `feature/schedule-availability` добавлен фильтр «Только свободные места» в расписании. [Описание функции и проверки](docs/schedule-availability.md). Проверка: `npm.cmd test` из корня проекта.
+
 ## Быстрый запуск в Windows
 
 Откройте PowerShell в папке проекта и выполните:
