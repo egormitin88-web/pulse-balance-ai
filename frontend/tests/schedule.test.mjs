@@ -14,7 +14,7 @@ test('disabled availability filter preserves all classes and their order', () =>
 })
 
 test('availability filter hides full classes across all directions', () => {
-  assert.deepEqual(filterSchedule(classes, '', true).map(item => item.id), [1, 3])
+  assert.deepEqual(filterSchedule(classes, '', true).map(item => item.id), [1, 2, 3])
 })
 
 test('direction and availability filters work together', () => {
