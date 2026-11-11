@@ -8,6 +8,10 @@
 
 Настройки публикации и результаты проверок: [docs/deployment.md](docs/deployment.md).
 
+В ветке `feature/schedule-availability` добавлен фильтр «Только свободные места» в расписании. [Описание функции и проверки](docs/schedule-availability.md). Проверка: `npm.cmd test` из корня проекта.
+
+[GitHub Actions](https://github.com/egormitin88-web/pulse-balance-ai/actions) автоматически запускает тесты и сборку на push и pull_request. [Описание проверок](docs/github-actions.md).
+
 ## Быстрый запуск в Windows
 
 Откройте PowerShell в папке проекта и выполните:
